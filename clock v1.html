@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rolling 12h Routine</title>
+    
+    <!-- PWA / App Config -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- Embedded Icon (Red Clock SVG) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%231e293b' stroke='%23ef4444' stroke-width='5'/%3E%3Crect x='48' y='20' width='4' height='30' rx='2' fill='%23ef4444'/%3E%3Crect x='48' y='48' width='25' height='4' rx='2' fill='%23ef4444'/%3E%3C/svg%3E">
+
+    <!-- Embedded Manifest -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"Routine Clock","short_name":"Routine","display":"standalone","start_url":".","background_color":"#0f172a","theme_color":"#0f172a","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ccircle cx=%2750%27 cy=%2750%27 r=%2745%27 fill=%27%231e293b%27 stroke=%27%23ef4444%27 stroke-width=%275%27/%3E%3Crect x=%2748%27 y=%2720%27 width=%274%27 height=%2730%27 rx=%272%27 fill=%27%23ef4444%27/%3E%3Crect x=%2748%27 y=%2748%27 width=%2725%27 height=%274%27 rx=%272%27 fill=%27%23ef4444%27/%3E%3C/svg%3E","type":"image/svg+xml","sizes":"any"}]}'>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; overflow: hidden; }
+        
+        /* Updated wrapper: Uses 90% of the smallest viewport dimension (vmin) */
+        .clock-wrapper { 
+            position: relative; 
+            width: 90vmin; 
+            height: 90vmin; 
+            margin: auto; 
+            aspect-ratio: 1 / 1; 
+        }
+        
+        /* Label styling */
+        .sector-text { 
+            font-size: 3px; 
+            font-weight: 700; 
+            fill: white; 
+            text-shadow: 0px 0px 2px rgba(0,0,0,0.8); 
+            text-transform: uppercase;
+            pointer-events: none; 
+            letter-spacing: 0.2px;
+        }
+        .sector-path { transition: opacity 0.3s ease; }
+        /* Hands shadow */
+        .hand { filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.6)); }
+        
+        /* Editor Panel Styling */
+        .editor-panel {
+            backdrop-filter: blur(12px);
+            background-color: rgba(15, 23, 42, 0.95);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center h-screen w-screen p-4">
+
+    <!-- Removed Header Info as requested -->
+
+    <!-- Edit Button -->
+    <button onclick="toggleEditor()" class="absolute top-6 right-6 z-50 p-2 bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-all border border-slate-700 shadow-lg" title="Settings & Launch">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+
+    <!-- Editor Overlay -->
+    <div id="editor-drawer" class="editor-panel fixed inset-y-0 right-0 w-full sm:w-[400px] transform translate-x-full transition-transform duration-300 ease-in-out z-40 flex flex-col border-l border-slate-700 shadow-2xl">
+        <div class="p-6 border-b border-slate-700 flex justify-between items-center">
+            <h2 class="text-lg font-bold text-white">Customize Routine</h2>
+            <button onclick="toggleEditor()" class="text-slate-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        
+        <div id="routine-list" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+
+        <div class="p-4 border-t border-slate-700 bg-slate-900/50">
+            <button onclick="openPopup()" class="w-full py-2 mb-3 bg-purple-700 hover:bg-purple-600 text-white text-sm font-bold rounded transition flex items-center justify-center gap-2 border border-purple-500 shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                Launch Popup Widget
+            </button>
+            <button onclick="addNewItem()" class="w-full py-2 mb-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-bold rounded transition flex items-center justify-center gap-2">
+                <span>+</span> Add New Slot
+            </button>
+            <button onclick="saveRoutine()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded shadow-lg shadow-blue-900/30 transition">
+                Save & Update Clock
+            </button>
+        </div>
+    </div>
+
+    <!-- Clock Container -->
+    <div class="clock-wrapper transition-all duration-300" id="main-clock">
+        <svg id="clock-svg" viewBox="0 0 100 100" class="w-full h-full">
+            <defs>
+                <!-- Gradient for the "sweeping under" shadow effect -->
+                <!-- REVERSED: Flows from Right (Dark) to Left (Transparent) for Counter-Clockwise shadow -->
+                <linearGradient id="shadow-gradient" x1="100%" y1="0%" x2="0%" y2="0%">
+                    <stop offset="0%" style="stop-color:black; stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:black; stop-opacity:0" />
+                </linearGradient>
+                
+                <!-- Clip path to keep shadow inside the clock circle -->
+                <clipPath id="circle-clip">
+                    <circle cx="50" cy="50" r="38" />
+                </clipPath>
+            </defs>
+
+            <circle cx="50" cy="50" r="38" fill="#1e293b" stroke="#334155" stroke-width="0.5" />
+            <g id="slices-layer"></g>
+            <g id="face-markings"></g>
+
+            <!-- Hands -->
+            
+            <!-- Hour Hand Group: Includes Rect + Text -->
+            <!-- Reverted width to 4 (x=48), kept length at 28 (y=22) -->
+            <!-- Text updated to show HH:MM only -->
+            <g id="hour-hand-group" class="hand">
+                <rect x="48" y="22" width="4" height="28" rx="2" fill="#ef4444" stroke="black" stroke-width="0.5" />
+                <text id="hand-text" x="50" y="36" text-anchor="middle" dominant-baseline="central" 
+                      fill="white" font-size="2.5" font-weight="900" font-family="monospace" 
+                      transform="rotate(-90, 50, 36)" style="pointer-events:none;">
+                    12:00
+                </text>
+            </g>
+            
+            <rect id="minute-hand" class="hand" x="48.75" y="16" width="2.5" height="34" rx="1.25" fill="#ef4444" stroke="black" stroke-width="0.5" />
+            <rect id="second-hand" class="hand" x="49.5" y="12" width="1" height="45" rx="0.5" fill="#ef4444" stroke="black" stroke-width="0.3" opacity="0.9" />
+            <circle cx="50" cy="50" r="3" fill="#ef4444" stroke="black" stroke-width="0.5" class="hand" />
+            <circle cx="50" cy="50" r="1" fill="black" />
+        </svg>
+    </div>
+
+    <script>
+        // Default Data
+        let routine = [
+            { label: "Sleep", start: 21.5, end: 6, color: "#475569" },
+            { label: "Wake", start: 6, end: 6.5, color: "#fbbf24" },
+            { label: "Workout", start: 6.5, end: 8.0, color: "#3b82f6" }, 
+            { label: "B-fast", start: 8.0, end: 8.75, color: "#10b981" },
+            { label: "Walk", start: 8.75, end: 9, color: "#a855f7" },
+            { label: "Work", start: 9, end: 16, color: "#6366f1" },
+            { label: "Cardio", start: 16, end: 16.5, color: "#f43f5e" },
+            { label: "Shower", start: 16.5, end: 17, color: "#06b6d4" },
+            { label: "Dinner", start: 17, end: 18, color: "#f97316" },
+            { label: "Hobbies", start: 18, end: 20, color: "#84cc16" },
+            { label: "Relax", start: 20, end: 21, color: "#ec4899" },
+            { label: "Read", start: 21, end: 21.5, color: "#8b5cf6" }
+        ];
+
+        const slicesLayer = document.getElementById('slices-layer');
+        const faceMarkings = document.getElementById('face-markings');
+        // Removed digitalTime reference
+        const editorDrawer = document.getElementById('editor-drawer');
+        const routineList = document.getElementById('routine-list');
+
+        const CLOCK_RADIUS = 38; 
+        const LABEL_RADIUS = 28; 
+        const NUMBER_RADIUS = 44; 
+
+        // --- EDITOR LOGIC ---
+        function toggleEditor() {
+            const isClosed = editorDrawer.classList.contains('translate-x-full');
+            if (isClosed) {
+                editorDrawer.classList.remove('translate-x-full');
+                renderEditorItems();
+            } else {
+                editorDrawer.classList.add('translate-x-full');
+            }
+        }
+
+        function openPopup() {
+            const width = 500;
+            const height = 600;
+            const left = (screen.width - width) / 2;
+            const top = (screen.height - height) / 2;
+            window.open(window.location.href, 'RoutineClock', `popup=yes,width=${width},height=${height},top=${top},left=${left}`);
+        }
+
+        function decimalToTime(decimal) {
+            let h = Math.floor(decimal);
+            let m = Math.round((decimal - h) * 60);
+            if (m === 60) { h++; m = 0; }
+            if (h >= 24) h -= 24;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        }
+
+        function timeToDecimal(timeStr) {
+            const [h, m] = timeStr.split(':').map(Number);
+            return h + m/60;
+        }
+
+        function renderEditorItems() {
+            routineList.innerHTML = '';
+            routine.forEach((item, index) => {
+                const el = document.createElement('div');
+                el.className = "bg-slate-800/50 p-3 rounded border border-slate-700 flex flex-col gap-2";
+                el.innerHTML = `
+                    <div class="flex gap-2">
+                        <input type="text" value="${item.label}" class="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:border-blue-500 outline-none" placeholder="Label">
+                        <input type="color" value="${item.color}" class="w-8 h-8 rounded cursor-pointer bg-transparent border-none">
+                        <button onclick="deleteItem(${index})" class="text-slate-500 hover:text-red-400 p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-400">
+                        <span>Start</span>
+                        <input type="time" value="${decimalToTime(item.start)}" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none">
+                        <span>End</span>
+                        <input type="time" value="${decimalToTime(item.end)}" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white focus:border-blue-500 outline-none">
+                    </div>
+                `;
+                routineList.appendChild(el);
+            });
+        }
+
+        function addNewItem() {
+            routine.push({ label: "New", start: 0, end: 1, color: "#64748b" });
+            renderEditorItems();
+            setTimeout(() => routineList.scrollTop = routineList.scrollHeight, 50);
+        }
+
+        function deleteItem(index) {
+            routine.splice(index, 1);
+            renderEditorItems();
+        }
+
+        function saveRoutine() {
+            const items = Array.from(routineList.children);
+            const newRoutine = [];
+            items.forEach(el => {
+                const inputs = el.querySelectorAll('input');
+                newRoutine.push({
+                    label: inputs[0].value || "Unnamed",
+                    color: inputs[1].value,
+                    start: timeToDecimal(inputs[2].value),
+                    end: timeToDecimal(inputs[3].value)
+                });
+            });
+            routine = newRoutine;
+            renderCycle(); 
+            toggleEditor(); 
+        }
+
+        // Draw Clock Face Numbers/Ticks
+        function drawFace() {
+            // Draw Ticks (0-59)
+            for (let i = 0; i < 60; i++) {
+                const angle = (i * 6) * (Math.PI / 180); // 6 degrees per minute
+                const isHourTick = i % 5 === 0;
+                const innerR = isHourTick ? CLOCK_RADIUS - 1 : CLOCK_RADIUS - 0.5;
+                const outerR = isHourTick ? CLOCK_RADIUS + 1 : CLOCK_RADIUS + 0.5;
+                
+                const x1 = 50 + innerR * Math.sin(angle);
+                const y1 = 50 - innerR * Math.cos(angle);
+                const x2 = 50 + outerR * Math.sin(angle);
+                const y2 = 50 - outerR * Math.cos(angle);
+                
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1);
+                line.setAttribute("y1", y1);
+                line.setAttribute("x2", x2);
+                line.setAttribute("y2", y2);
+                line.setAttribute("stroke", "#ffffff"); // Changed to White
+                line.setAttribute("stroke-width", isHourTick ? "0.5" : "0.25");
+                faceMarkings.appendChild(line);
+            }
+            for (let i = 1; i <= 12; i++) {
+                const angle = (i * 30) * (Math.PI / 180);
+                const x = 50 + NUMBER_RADIUS * Math.sin(angle);
+                const y = 50 - NUMBER_RADIUS * Math.cos(angle);
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", y);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "middle");
+                text.setAttribute("fill", "#ffffff");
+                text.setAttribute("font-size", "3.5");
+                text.setAttribute("font-weight", "900"); 
+                text.textContent = i;
+                faceMarkings.appendChild(text);
+            }
+        }
+
+        function getCoordsForHour(hour, radius = CLOCK_RADIUS) {
+            const angleDeg = ((hour % 12) / 12) * 360;
+            const angleRad = (angleDeg - 90) * (Math.PI / 180); 
+            return {
+                x: 50 + radius * Math.cos(angleRad),
+                y: 50 + radius * Math.sin(angleRad)
+            };
+        }
+
+        function drawArc(targetGroup, startAbs, endAbs, color, label, opacity, options = {}) {
+            let diff = endAbs - startAbs;
+            if (diff <= 0.001) return; 
+            const { noStroke, skipLabel } = options;
+
+            const startCoords = getCoordsForHour(startAbs);
+            const endCoords = getCoordsForHour(endAbs);
+            const largeArc = diff > 6 ? 1 : 0;
+            
+            const pathD = [
+                `M 50 50`,
+                `L ${startCoords.x} ${startCoords.y}`,
+                `A ${CLOCK_RADIUS} ${CLOCK_RADIUS} 0 ${largeArc} 1 ${endCoords.x} ${endCoords.y}`,
+                `Z`
+            ].join(" ");
+
+            const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", pathD);
+            path.setAttribute("fill", color);
+            path.setAttribute("class", "sector-path");
+            path.style.opacity = opacity;
+            
+            if (noStroke) {
+                path.setAttribute("stroke", "none");
+            } else {
+                path.setAttribute("stroke", "#1e293b"); 
+                path.setAttribute("stroke-width", "0.2");
+            }
+            group.appendChild(path);
+
+            if (label && diff > 0.4 && !skipLabel) { 
+                const midHour = (startAbs + endAbs) / 2;
+                const angleDeg = ((midHour % 12) / 12) * 360;
+                const angleRad = (angleDeg - 90) * (Math.PI / 180);
+                
+                const tx = 50 + LABEL_RADIUS * Math.cos(angleRad);
+                const ty = 50 + LABEL_RADIUS * Math.sin(angleRad);
+                let rotation = angleDeg; 
+                if (rotation > 180) { rotation += 180; }
+
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", tx);
+                text.setAttribute("y", ty);
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("dominant-baseline", "middle");
+                text.setAttribute("class", "sector-text");
+                text.setAttribute("transform", `rotate(${rotation - 90}, ${tx}, ${ty})`);
+                text.style.opacity = opacity < 1 ? 0.6 : 1; 
+                text.textContent = label;
+                group.appendChild(text);
+            }
+            targetGroup.appendChild(group);
+        }
+
+        function renderCycle() {
+            slicesLayer.innerHTML = '';
+            
+            const now = new Date();
+            const currentAbs = now.getHours() + now.getMinutes()/60 + now.getSeconds()/3600;
+            
+            // SIMPLIFIED: Strictly From NOW to NOW+12h
+            const pastLimit = currentAbs;
+            const futureLimit = currentAbs + 12.0;
+
+            // 1. Generate Segments
+            const segments = [];
+            routine.forEach(item => {
+                let baseStart = item.start;
+                let baseEnd = item.end;
+                if (baseEnd < baseStart) baseEnd += 24;
+
+                [-24, 0, 24].forEach(offset => {
+                    const s = baseStart + offset;
+                    const e = baseEnd + offset;
+                    // Intersect with View Window
+                    const drawStart = Math.max(s, pastLimit);
+                    const drawEnd = Math.min(e, futureLimit);
+                    if (drawStart < drawEnd) {
+                        segments.push({ start: drawStart, end: drawEnd, color: item.color, label: item.label });
+                    }
+                });
+            });
+            // Sort Chronologically: Top items in list = Later in time
+            segments.sort((a, b) => a.start - b.start);
+
+            // 2. Draw All Segments (Flat)
+            segments.forEach(seg => {
+                drawArc(slicesLayer, seg.start, seg.end, seg.color, seg.label, 1.0, { noStroke: false });
+            });
+
+            // 3. Draw Clean Gradient Shadow
+            // Create a rect that starts at the split line and extends Counter-Clockwise (Past)
+            // It sits on top of all segments, creating the "Future overlaps Past" depth.
+            if (segments.length > 0) {
+                const angleDeg = ((currentAbs % 12) / 12) * 360;
+                
+                const shadowRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                shadowRect.setAttribute("x", "40"); // 50 - 10 (Starts at center, extends Left/CCW)
+                shadowRect.setAttribute("y", "12"); // Starts at top edge of circle (50 - 38)
+                shadowRect.setAttribute("width", "10"); // Shadow length
+                shadowRect.setAttribute("height", "38"); // Covers radius
+                shadowRect.setAttribute("fill", "url(#shadow-gradient)");
+                shadowRect.setAttribute("clip-path", "url(#circle-clip)");
+                // Rotate to align with current time
+                shadowRect.setAttribute("transform", `rotate(${angleDeg}, 50, 50)`);
+                
+                slicesLayer.appendChild(shadowRect);
+                
+                // Redraw the crisp edge line for sharpness
+                const startCoords = getCoordsForHour(currentAbs);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", "50");
+                line.setAttribute("y1", "50");
+                line.setAttribute("x2", startCoords.x);
+                line.setAttribute("y2", startCoords.y);
+                line.setAttribute("stroke", "#1e293b"); 
+                line.setAttribute("stroke-width", "0.5");
+                slicesLayer.appendChild(line);
+            }
+        }
+
+        function updateHands() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes();
+            const s = now.getSeconds();
+            const ms = now.getMilliseconds();
+
+            const sDeg = ((s + ms/1000) / 60) * 360;
+            const mDeg = (m / 60) * 360 + (s/60)*6; 
+            const hDeg = ((h % 12) / 12) * 360 + (m/60)*30;
+
+            const hourHandGroup = document.getElementById('hour-hand-group');
+            const handText = document.getElementById('hand-text');
+            const minuteHand = document.getElementById('minute-hand');
+            const secondHand = document.getElementById('second-hand');
+
+            // Rotate Hands
+            hourHandGroup.setAttribute("transform", `rotate(${hDeg}, 50, 50)`);
+            minuteHand.setAttribute("transform", `rotate(${mDeg}, 50, 50)`);
+            secondHand.setAttribute("transform", `rotate(${sDeg}, 50, 50)`);
+
+            // Update Digital Time in Hour Hand
+            let displayH = h % 12;
+            displayH = displayH ? displayH : 12;
+            const displayM = m.toString().padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            
+            // Construct HTML with smaller AM/PM
+            const newHtml = `${displayH}:${displayM}<tspan font-size="0.75em"> ${ampm}</tspan>`;
+            
+            // Update only if changed to avoid unnecessary DOM repaints
+            if (handText.innerHTML !== newHtml) {
+                handText.innerHTML = newHtml;
+            }
+        }
+
+        function loop() {
+            renderCycle(); 
+            updateHands();
+            requestAnimationFrame(loop);
+        }
+
+        drawFace();
+        requestAnimationFrame(loop);
+
+    </script>
+</body>
+</html>
