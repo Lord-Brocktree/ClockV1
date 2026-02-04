@@ -78,9 +78,14 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 Launch Popup Widget
             </button>
-            <button onclick="addNewItem()" class="w-full py-2 mb-3 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-bold rounded transition flex items-center justify-center gap-2">
-                <span>+</span> Add New Slot
-            </button>
+            <div class="flex gap-2 mb-3">
+                <button onclick="addNewItem()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-bold rounded transition flex items-center justify-center gap-2">
+                    <span>+</span> Add
+                </button>
+                <button onclick="resetRoutine()" class="px-4 py-2 bg-red-900/50 hover:bg-red-800 text-red-200 text-sm font-bold rounded transition border border-red-800" title="Reset to Defaults">
+                    Reset
+                </button>
+            </div>
             <button onclick="saveRoutine()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded shadow-lg shadow-blue-900/30 transition">
                 Save & Update Clock
             </button>
@@ -130,8 +135,8 @@
     </div>
 
     <script>
-        // Default Data
-        let routine = [
+        // Default Data Constant
+        const DEFAULT_ROUTINE = [
             { label: "Sleep", start: 21.5, end: 6, color: "#475569" },
             { label: "Wake", start: 6, end: 6.5, color: "#fbbf24" },
             { label: "Workout", start: 6.5, end: 8.0, color: "#3b82f6" }, 
@@ -145,6 +150,9 @@
             { label: "Relax", start: 20, end: 21, color: "#ec4899" },
             { label: "Read", start: 21, end: 21.5, color: "#8b5cf6" }
         ];
+
+        // Initialize Routine from Local Storage or fallback to Default
+        let routine = JSON.parse(localStorage.getItem('routineClockData')) || JSON.parse(JSON.stringify(DEFAULT_ROUTINE));
 
         const slicesLayer = document.getElementById('slices-layer');
         const faceMarkings = document.getElementById('face-markings');
@@ -223,6 +231,15 @@
             renderEditorItems();
         }
 
+        function resetRoutine() {
+            if(confirm('Reset all routine data to default?')) {
+                routine = JSON.parse(JSON.stringify(DEFAULT_ROUTINE));
+                localStorage.removeItem('routineClockData');
+                renderEditorItems();
+                renderCycle();
+            }
+        }
+
         function saveRoutine() {
             const items = Array.from(routineList.children);
             const newRoutine = [];
@@ -236,6 +253,10 @@
                 });
             });
             routine = newRoutine;
+            
+            // Save to Local Storage
+            localStorage.setItem('routineClockData', JSON.stringify(routine));
+            
             renderCycle(); 
             toggleEditor(); 
         }
@@ -448,10 +469,21 @@
             }
         }
 
-        function loop() {
-            renderCycle(); 
-            updateHands();
+        let lastFrameTime = 0;
+        const fps = 15;
+        const fpsInterval = 1000 / fps;
+
+        function loop(timestamp) {
             requestAnimationFrame(loop);
+
+            if (!lastFrameTime) lastFrameTime = timestamp;
+            const elapsed = timestamp - lastFrameTime;
+
+            if (elapsed > fpsInterval) {
+                lastFrameTime = timestamp - (elapsed % fpsInterval);
+                renderCycle(); 
+                updateHands();
+            }
         }
 
         drawFace();
