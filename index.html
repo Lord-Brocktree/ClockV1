@@ -18,13 +18,13 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; overflow: hidden; }
+        body { background-color: transparent; color: #f8fafc; overflow: hidden; }
         
-        /* Updated wrapper: Uses 90% of the smallest viewport dimension (vmin) */
+        /* Updated wrapper: Uses 100% of the smallest viewport dimension (vmin) for edge-to-edge look */
         .clock-wrapper { 
             position: relative; 
-            width: 90vmin; 
-            height: 90vmin; 
+            width: 100vmin; 
+            height: 100vmin; 
             margin: auto; 
             aspect-ratio: 1 / 1; 
         }
@@ -105,11 +105,11 @@
                 
                 <!-- Clip path to keep shadow inside the clock circle -->
                 <clipPath id="circle-clip">
-                    <circle cx="50" cy="50" r="38" />
+                    <circle cx="50" cy="50" r="48" />
                 </clipPath>
             </defs>
 
-            <circle cx="50" cy="50" r="38" fill="#1e293b" stroke="#334155" stroke-width="0.5" />
+            <circle cx="50" cy="50" r="48" fill="#1e293b" stroke="#334155" stroke-width="0.5" />
             <g id="slices-layer"></g>
             <g id="face-markings"></g>
 
@@ -160,7 +160,7 @@
         const editorDrawer = document.getElementById('editor-drawer');
         const routineList = document.getElementById('routine-list');
 
-        const CLOCK_RADIUS = 38; 
+        const CLOCK_RADIUS = 48; 
         const LABEL_RADIUS = 28; 
         const NUMBER_RADIUS = 44; 
 
@@ -410,9 +410,9 @@
                 
                 const shadowRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                 shadowRect.setAttribute("x", "40"); // 50 - 10 (Starts at center, extends Left/CCW)
-                shadowRect.setAttribute("y", "12"); // Starts at top edge of circle (50 - 38)
+                shadowRect.setAttribute("y", "2"); // Starts at top edge of circle (50 - 48)
                 shadowRect.setAttribute("width", "10"); // Shadow length
-                shadowRect.setAttribute("height", "38"); // Covers radius
+                shadowRect.setAttribute("height", "48"); // Covers radius
                 shadowRect.setAttribute("fill", "url(#shadow-gradient)");
                 shadowRect.setAttribute("clip-path", "url(#circle-clip)");
                 // Rotate to align with current time
